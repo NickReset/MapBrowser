@@ -2,3 +2,5 @@ name: MapBrowser
 version: '${project.version}'
 main: social.nickrest.mapbrowser.MapBrowser
 api-version: '1.20'
+depend:
+  - maps
