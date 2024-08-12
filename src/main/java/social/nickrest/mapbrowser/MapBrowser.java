@@ -1,9 +1,5 @@
 package social.nickrest.mapbrowser;
 
-import com.github.kklisura.cdt.launch.ChromeArguments;
-import com.github.kklisura.cdt.launch.ChromeLauncher;
-import com.github.kklisura.cdt.services.ChromeService;
-import com.github.kklisura.cdt.services.types.ChromeTab;
 import dev.cerus.maps.api.MapScreen;
 import dev.cerus.maps.api.event.PlayerClickScreenEvent;
 import dev.cerus.maps.api.graphics.ColorCache;
@@ -13,6 +9,8 @@ import dev.cerus.maps.util.Vec2;
 import lombok.Getter;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -20,16 +18,22 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import javax.imageio.ImageIO;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 @Getter
 public final class MapBrowser extends JavaPlugin implements Listener {
 
     private MapScreen screen;
-    private ChromeService service;
+    private YamlConfiguration config;
+    private RemoteScreen browser;
 
     @Override
     public void onEnable() {
@@ -40,7 +44,7 @@ public final class MapBrowser extends JavaPlugin implements Listener {
             return;
         }
 
-
+        config = loadConfig();
 
         // resolve testimage.png
         if (!getDataFolder().toPath().resolve("testimage.png").toFile().exists()) {
@@ -52,56 +56,56 @@ public final class MapBrowser extends JavaPlugin implements Listener {
         screen.spawnFrames(Bukkit.getOnlinePlayers().toArray(new Player[0]));
         screen.sendMaps(true);
 
-        // browser
-        new Thread(() -> {
-            try(ChromeLauncher launcher = new ChromeLauncher()) {
-                getLogger().info("Launching Chrome...");
-
-                service = launcher.launch(
-                        Path.of("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge_proxy.exe"),
-                        ChromeArguments.defaults(true).build()
-                );
-
-                getLogger().info("Chrome Version: " + service.getVersion().getProtocolVersion());
-                getLogger().info("V8 Version: " + service.getVersion().getV8Version());
-            } catch (Exception e) {
-                throw new RuntimeException("THE METHOD!!!! ??????????", e);
-            }
-        }).start();
-
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(browser = new RemoteScreen(screen), this);
     }
 
     @Override
     public void onDisable() {
-        if (service != null) {
-            service.getTabs().forEach(service::closeTab);
-        }
+        browser.close();
     }
 
-    @EventHandler
-    public void onJoin(PlayerJoinEvent e) {
-        e.joinMessage(Component.text(e.getPlayer().getName() + " joined the game!"));
+    public YamlConfiguration loadConfig() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.options().parseComments(true);
 
+        if (!getDataFolder().toPath().resolve("config.yml").toFile().exists()) {
+            saveResource("config.yml", false);
+        }
+
+        File configFile = new File(getDataFolder(), "config.yml");
         try {
-            BufferedImage image = ImageIO.read(getDataFolder().toPath().resolve("testimage.png").toFile());
-            image = resizeImage(image, screen.getWidth() * 128, screen.getHeight() * 128);
-            screen.getGraphics().drawImage(image,0, 0);
-        } catch (IOException err) {
-            throw new RuntimeException("THE METHOD!!!! 😭😭😭😭😭", err);
+            config.load(configFile);
+        } catch (InvalidConfigurationException | IOException e) {
+            throw new RuntimeException(e);
         }
 
-        screen.spawnFrames(e.getPlayer());
-        screen.sendMaps(true, e.getPlayer());
-        Bukkit.broadcast(Component.text(String.format("Screen: x: %s, y: %s", screen.getWidth() * 128, screen.getHeight() * 128)));
+        return config;
     }
 
-    @EventHandler(ignoreCancelled = true)
-    public void onClickScreen(PlayerClickScreenEvent e) {
-        Vec2 pos = e.getClickPos();
+//    @EventHandler
+//    public void onJoin(PlayerJoinEvent e) {
+//        e.joinMessage(Component.text(e.getPlayer().getName() + " joined the game!"));
+//
+//        try {
+//            BufferedImage image = ImageIO.read(getDataFolder().toPath().resolve("testimage.png").toFile());
+//            image = resizeImage(image, screen.getWidth() * 128, screen.getHeight() * 128);
+//            screen.getGraphics().drawImage(image,0, 0);
+//        } catch (IOException err) {
+//            throw new RuntimeException("THE METHOD!!!! 😭😭😭😭😭", err);
+//        }
+//
+//        screen.spawnFrames(e.getPlayer());
+//        screen.sendMaps(true, e.getPlayer());
+//        Bukkit.broadcast(Component.text(String.format("Screen: x: %s, y: %s", screen.getWidth() * 128, screen.getHeight() * 128)));
+//    }
 
-        Bukkit.broadcast(Component.text(String.format("Click at x: %s, y: %s, right: %s", pos.x, pos.y, !e.isLeftClick())));
-    }
+//    @EventHandler(ignoreCancelled = true)
+//    public void onClickScreen(PlayerClickScreenEvent e) {
+//        Vec2 pos = e.getClickPos();
+//
+//        Bukkit.broadcast(Component.text(String.format("Click at x: %s, y: %s, right: %s", pos.x, pos.y, !e.isLeftClick())));
+//    }
 
     public BufferedImage resizeImage(BufferedImage originalImage, int targetWidth, int targetHeight) {
         BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
