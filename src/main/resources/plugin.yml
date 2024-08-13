@@ -4,3 +4,16 @@ main: social.nickrest.mapbrowser.MapBrowser
 api-version: '1.20'
 depend:
   - maps
+commands:
+  forward:
+    usage: None
+  back:
+    usage: None
+  space:
+    usage: None
+  enter:
+    usage: None
+  backspace:
+    usage: None
+  goto:
+    usage: /goto <url>
